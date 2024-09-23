@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "techjobs"
+version = "0.1.0"
+description = ""
+authors = ["rafaeldecarvalho <rafaeldecarvalho.ps@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+selenium-driverless = "^1.9.3.1"
+requests = "^2.32.3"
+linkedin-api = "^2.3.0"
+twocaptcha = "^0.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
