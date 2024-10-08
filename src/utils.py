@@ -1,11 +1,15 @@
 from selenium_driverless import webdriver
 from selenium_driverless.types.by import By
+from tqdm import tqdm
+from rich.console import Console
 import asyncio
 import random
 import shutil
 import time
 import csv
 import os
+
+console = Console()
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 current_dir_abspath = os.path.abspath(current_dir)
@@ -219,3 +223,22 @@ def save_errors(*args):
     with open(errors_path, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([*args])
+
+
+def sleep_with_progress_bar(duration):
+    """Sleep for `duration` seconds, showing a progress bar."""
+
+    interval = 10  # Set the interval to 10 seconds
+    total_intervals = int(duration) // interval  # Number of full intervals
+    remainder = int(duration) % interval  # Remaining time after full intervals
+
+    console.print(f"[bold blue]Sleeping for {duration:.2f} seconds in 10-second intervals.[/bold blue]")
+
+    for _ in tqdm(range(total_intervals), desc="Sleeping", unit="interval", ncols=100):
+        time.sleep(interval)
+
+    if remainder > 0:
+        time.sleep(remainder)
+        tqdm.write(f"Finished sleeping additional {remainder} seconds.")
+
+    console.print("[bold blue]Finished sleeping.[/bold blue]")
