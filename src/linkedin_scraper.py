@@ -12,7 +12,6 @@ import logging
 import os
 
 console = Console()
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -229,7 +228,7 @@ async def main():
             console.print(f"[bold cyan]Skipping {founder['Name']} because LinkedIn URL is invalid.[/bold cyan]")
             continue
 
-        account = get_account()
+        account = await get_account()
         await login(driver, account)
 
         if "company" in founder["LinkedIn"]:
@@ -244,7 +243,7 @@ async def main():
 
         if race_response == "premium_alert":
             console.print("[bold dark_orange3]Premium alert found, changing account... [/bold dark_orange3]")
-            account = get_account()
+            account = await get_account()
             await login(driver, account)
             continue
 

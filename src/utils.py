@@ -10,7 +10,6 @@ import csv
 import os
 
 console = Console()
-
 current_dir = os.path.dirname(os.path.abspath(__file__))
 current_dir_abspath = os.path.abspath(current_dir)
 

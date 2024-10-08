@@ -1,4 +1,4 @@
-from tenacity import retry_if_exception_type, stop_after_attempt, retry, retry_if_result, is_none
+from tenacity import retry_if_exception_type, stop_after_attempt, retry, retry_if_result
 from twocaptcha import TwoCaptcha, TimeoutException, ApiException, NetworkException
 from urllib.parse import quote
 from bs4 import BeautifulSoup
@@ -11,6 +11,10 @@ import os
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 attempt = 0
+
+
+def is_none(value):
+    return value is None
 
 
 @retry(
@@ -83,7 +87,7 @@ async def solve_capsolver(captcha_blob, url):
 
 
 async def solve_captcha(driver, solver):
-    url = driver.current_url
+    url = await driver.current_url
 
     content = await driver.page_source
 

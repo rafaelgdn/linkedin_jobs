@@ -1,8 +1,8 @@
 from selenium_driverless.types.by import By
-from ..utils import wait_for_selector, race, wait_for_network_idle, type_with_delay
-from cookies import load_cookies, save_cookies
-from two_factor import two_factor_authentication
-from captcha import solve_captcha
+from src.utils import wait_for_selector, race, wait_for_network_idle, type_with_delay
+from helpers.cookies import load_cookies, save_cookies
+from helpers.two_factor import two_factor_authentication
+from helpers.captcha import solve_captcha
 
 
 async def login(driver, account):

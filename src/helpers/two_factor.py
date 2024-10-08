@@ -1,6 +1,6 @@
 import requests
 from selenium_driverless.types.by import By
-from ..utils import wait_for_selector, race
+from src.utils import wait_for_selector, race
 
 
 async def two_factor_authentication(driver, account):

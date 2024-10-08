@@ -1,4 +1,4 @@
-from ..utils import sleep_with_progress_bar
+from src.utils import sleep_with_progress_bar
 
 accounts = [
     # {"email": "ErginKaya733@gmail.com", "password": "Bn@#9262853856286", "2FA": "WAG6NVZNXL5RY6QTGTE52UF3ZL2VT6XG"},
