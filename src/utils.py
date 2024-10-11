@@ -85,7 +85,7 @@ async def start_driver():
     return driver
 
 
-async def wait_for_selector(driver, selector, timeout=30, check_interval=0.5, response=None, visible=True, xpath=False):
+async def wait_for_selector(driver, selector, timeout=30, check_interval=0.5, response=None, visible=True, xpath=False, throw_error=False):
     start_time = asyncio.get_event_loop().time()
     while (asyncio.get_event_loop().time() - start_time) < timeout:
         try:
@@ -101,6 +101,10 @@ async def wait_for_selector(driver, selector, timeout=30, check_interval=0.5, re
             pass
 
         await asyncio.sleep(check_interval)
+    
+    if throw_error:
+        raise Exception(f"Element with selector '{selector}' not found within {timeout} seconds.")
+    
 
 
 async def race(*coroutines):

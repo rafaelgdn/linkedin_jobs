@@ -3,10 +3,13 @@ from src.utils import wait_for_selector, race, wait_for_network_idle, type_with_
 from helpers.cookies import load_cookies, save_cookies
 from helpers.two_factor import two_factor_authentication
 from helpers.captcha import solve_captcha
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 async def login(driver, account):
-    print(f"Logging in account: {account['email']}")
+    logging.info(f"Logging in account: {account['email']}")
 
     if account.get("proxy", None):
         await driver.set_single_proxy(account["proxy"])
@@ -21,7 +24,7 @@ async def login(driver, account):
     )
 
     if race_response == "logged":
-        print("Already logged in.")
+        logging.info("Already logged in.")
         return
 
     await wait_for_network_idle(driver)

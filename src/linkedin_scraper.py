@@ -3,6 +3,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from selenium_driverless.types.by import By
 from helpers.accounts import get_account
 from helpers.cookies import update_cookies
+from helpers.tech_jobs import is_tech_job
 from linkedin.login import login
 from urllib.parse import urlparse
 from rich.console import Console
@@ -28,54 +29,65 @@ def is_url(string):
 
 @retry(stop=stop_after_attempt(10), wait=wait_fixed(5))
 async def get_jobs_by_soup(driver):
-    current_page = 1
-    jobs = []
+    try:
+        current_page = 1
+        jobs = []
+        tech_jobs = []
 
-    while True:
-        await driver.sleep(0.5)
-        await wait_for_selector(driver, "div.jobs-search-results-list")
-        await wait_for_selector(driver, "ul.scaffold-layout__list-container li div[class*='content'] div[class*='title']")
-        await driver.sleep(2)
+        while True:
+            await driver.sleep(0.5)
+            await wait_for_selector(driver, "ul.scaffold-layout__list-container li div[class*='content'] div[class*='title']")
 
-        soup = BeautifulSoup(await driver.page_source, "html.parser")
+            jobs_list = await wait_for_selector(driver, "div.jobs-search-results-list")
 
-        pagination = soup.select("ul.jobs-search-pagination__pages li.jobs-search-pagination__indicator")
+            for _ in range(30):
+                await driver.execute_script("arguments[0].scrollBy(0, 200);", jobs_list)
+                await driver.sleep(0.2)
 
-        if not pagination:
-            pagination = soup.select("ul li[data-test-pagination-page-btn]")
+            content = await driver.page_source
+            soup = BeautifulSoup(content, "html.parser")
 
-        jobs_card_elements = soup.select("ul.scaffold-layout__list-container li.jobs-search-results__list-item")
+            pagination = soup.select("ul.jobs-search-pagination__pages li.jobs-search-pagination__indicator")
 
-        if not jobs_card_elements:
-            await driver.refresh()
-            await driver.sleep(2)
-            raise Exception("No jobs found")
+            if not pagination:
+                pagination = soup.select("ul li[data-test-pagination-page-btn]")
 
-        for job_card_element in jobs_card_elements:
-            url = job_card_element.select_one("a")["href"]
-            title = job_card_element.select_one("div[class*='content'] div[class*='title'] strong").text.replace("\n", "").strip()
-            job = {"url": url, "title": title}
-            console.print(f"[bold green]Job found:\ntitle - {title}\nurl - {url}[/bold green]")
-            jobs.append(job)
+            jobs_card_elements = soup.select("ul.scaffold-layout__list-container li.jobs-search-results__list-item")
 
-        if not pagination:
-            break
+            if not jobs_card_elements:
+                await driver.refresh()
+                await driver.sleep(2)
+                raise Exception("No jobs found")
 
-        current_page += 1
+            for job_card_element in jobs_card_elements:
+                url = job_card_element.select_one("a")["href"].split("?")[0]
+                url = f"https://linkedin.com{url}"
+                title = job_card_element.select_one("div[class*='content'] div[class*='title'] strong").text.replace("\n", "").strip()
+                job = {"url": url, "title": title}
+                jobs.append(job)
+                is_tech = is_tech_job(title)
+                if is_tech:
+                    tech_jobs.append(job)
+                logging.info("Job found.")
+                console.print(f"[bold dark_green]tech: {is_tech}\ntitle: {title}\nurl: {url}[/bold dark_green]")
 
-        button = await driver.execute_script(f"return document.querySelector(\"button[aria-label='Page {current_page}'\")")
+            if not pagination:
+                break
 
-        if button:
-            await driver.execute_script("arguments[0].click()", button)
-        else:
-            await driver.sleep(2)
-            button = await driver.execute_script(f"return document.querySelector(\"button[aria-label='Page {current_page}'\")")
-            if button:
+            current_page += 1
+
+            has_button = soup.select_one(f"button[aria-label='Page {current_page}']")
+
+            if has_button:
+                button = await wait_for_selector(driver, f"button[aria-label='Page {current_page}']")
                 await driver.execute_script("arguments[0].click()", button)
             else:
                 break
 
-    return jobs
+        return jobs, tech_jobs
+    except Exception as e:
+        logging.error(f"Error getting jobs: {e}")
+        raise e
 
 
 @retry(stop=stop_after_attempt(10), wait=wait_fixed(5))
@@ -131,7 +143,9 @@ async def get_jobs_by_browser(driver):
                 continue
 
             job = {"url": url, "title": title_text, "subtitle": subtitle_text, "location": location_text, "metadata": metadata_text}
-            print(f"\nlink: {job['url']}\ntitle: {job['title']}\nsubtitle: {job['subtitle']}\nlocation: {job['location']}\n")
+            console.print(
+                f"[bold aquamarine3]link: {job['url']}\ntitle: {job['title']}\nsubtitle: {job['subtitle']}\nlocation: {job['location']}[/bold aquamarine3]"
+            )
             jobs.append(job)
 
         if not pagination:
@@ -154,8 +168,10 @@ async def get_jobs_by_browser(driver):
     return jobs
 
 
+@retry(stop=stop_after_attempt(10), wait=wait_fixed(5))
 async def get_linkedin_jobs_from_company(driver, linkedin_url):
     await driver.get(f"{linkedin_url}jobs", wait_load=True)
+    await wait_for_network_idle(driver)
 
     try:
         num_employees_element = await wait_for_selector(driver, "a[href*='/search/results/people'] span", timeout=10)
@@ -170,27 +186,26 @@ async def get_linkedin_jobs_from_company(driver, linkedin_url):
     )
 
     if race_response == "no_jobs":
-        return [], num_employees_text
+        return [], [], num_employees_text
 
     if race_response == "not_found_page" or not race_response:
-        return [], "0"
+        return [], [], "0"
 
     await driver.execute_script("arguments[0].click()", race_response)
     await wait_for_network_idle(driver)
 
-    try:
-        jobs = await get_jobs_by_soup(driver)
-    except Exception:
-        jobs = await get_jobs_by_browser(driver)
+    jobs, tech_jobs = await get_jobs_by_soup(driver)
 
-    return jobs, num_employees_text
+    return jobs, tech_jobs, num_employees_text
 
 
+@retry(stop=stop_after_attempt(10), wait=wait_fixed(5))
 async def get_linkedin_jobs_from_profile(driver, linkedin_url):
-    print(f"Getting jobs from {linkedin_url}")
+    logging.info(f"Getting jobs from {linkedin_url}")
 
     while True:
         await driver.get(linkedin_url, wait_load=True)
+        await wait_for_network_idle(driver)
 
         race_response = await race(
             wait_for_selector(driver, "section.artdeco-card.pv-profile-card.break-words div#experience", visible=False),
@@ -200,22 +215,23 @@ async def get_linkedin_jobs_from_profile(driver, linkedin_url):
         )
 
         if race_response == "page_not_found":
-            print("Page not found.")
-            return [], "0"
+            console.print("[bold dark_orange3]Page not found.[/bold dark_orange3]")
+            return [], [], "0"
 
         if race_response != "premium_alert":
             break
 
+    await wait_for_selector(driver, "a[href*='linkedin.com/company/']", throw_error=True, timeout=60)
     experience_section = await driver.execute_script("return arguments[0].parentNode;", race_response)
     experience_elements = await experience_section.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/company/']")
 
     if not experience_elements:
-        return [], "0"
+        return [], [], "0"
 
     last_company = experience_elements[0]
     last_company_url = await last_company.get_attribute("href")
-    jobs, num_employees_text = await get_linkedin_jobs_from_company(driver, last_company_url)
-    return jobs, num_employees_text
+    jobs, tech_jobs, num_employees_text = await get_linkedin_jobs_from_company(driver, last_company_url)
+    return jobs, tech_jobs, num_employees_text
 
 
 async def main():
@@ -247,11 +263,15 @@ async def main():
             await login(driver, account)
             continue
 
-        linkedin_jobs, num_employees = race_response
+        linkedin_jobs, tech_jobs, num_employees = race_response
 
         founder["# of Employees"] = num_employees
         founder["Jobs on Linkedin"] = linkedin_jobs
-        console.print(f"[bold blue]\nlinkedin_jobs: {len(linkedin_jobs)}\nlinkedin_employees: {num_employees}\n[/bold blue]")
+        founder["Tech Jobs on Linkedin"] = tech_jobs
+        logging.info("Founder scraper result.")
+        console.print(
+            f"[bold green]linkedin_jobs: {len(linkedin_jobs)}\ntech_jobs: {len(tech_jobs)}\nlinkedin_employees: {num_employees}[/bold green]"
+        )
 
         save_success_csv(founder, f"{assets_path}/founders_linkedin_jobs.csv")
         await update_cookies(driver, account["email"])
