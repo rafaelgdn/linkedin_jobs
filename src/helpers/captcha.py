@@ -2,13 +2,11 @@ from tenacity import retry_if_exception_type, stop_after_attempt, retry, retry_i
 from twocaptcha import TwoCaptcha, TimeoutException, ApiException, NetworkException
 from urllib.parse import quote
 from bs4 import BeautifulSoup
+from helpers.logger import logger
 import requests
-import logging
 import time
 import json
 import os
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 attempt = 0
 
@@ -26,7 +24,7 @@ async def solve_2captcha(captcha_blob, url):
 
     global attempt
 
-    logging.info(f"Waiting on 2Captcha to solve captcha attempt {attempt} / 5 ...")
+    logger.info(f"Waiting on 2Captcha to solve captcha attempt {attempt} / 5 ...")
 
     attempt += 1
 
@@ -39,7 +37,7 @@ async def solve_2captcha(captcha_blob, url):
         surl="https://iframe.arkoselabs.com",
     )
 
-    logging.info("2Captcha finished solving captcha")
+    logger.info("2Captcha finished solving captcha")
 
     return result["code"]
 
@@ -48,7 +46,7 @@ async def solve_2captcha(captcha_blob, url):
 async def solve_capsolver(captcha_blob, url):
     """https://capsolver.com/"""
 
-    logging.info("Waiting on CapSolver to solve captcha...")
+    logger.info("Waiting on CapSolver to solve captcha...")
 
     payload = {
         "clientKey": os.environ.get("CAPSOLVER_API_KEY"),
@@ -70,7 +68,7 @@ async def solve_capsolver(captcha_blob, url):
             res.text,
         )
 
-    logging.info(f"Received captcha solver taskId: {task_id} / Getting result...")
+    logger.info(f"Received captcha solver taskId: {task_id} / Getting result...")
 
     while True:
         time.sleep(1)
@@ -79,10 +77,10 @@ async def solve_capsolver(captcha_blob, url):
         resp = res.json()
         status = resp.get("status")
         if status == "ready":
-            logging.info("CapSolver finished solving captcha")
+            logger.info("CapSolver finished solving captcha")
             return resp.get("solution", {}).get("token")
         if status == "failed" or resp.get("errorId"):
-            logging.info(f"Captcha solve failed! response: {res.text}")
+            logger.info(f"Captcha solve failed! response: {res.text}")
             return None
 
 
@@ -95,12 +93,12 @@ async def solve_captcha(driver, solver):
 
     code_tag = soup.find("code", id="securedDataExchange")
 
-    logging.info("Searching for captcha blob in linkedin to begin captcha solving")
+    logger.info("Searching for captcha blob in linkedin to begin captcha solving")
 
     if code_tag:
         comment = code_tag.contents[0]
         extracted_code = str(comment).strip('<!--""-->').strip()
-        logging.info("Extracted captcha blob:", extracted_code)
+        logger.info("Extracted captcha blob:", extracted_code)
     elif "Please choose a more secure password." in content:
         raise Exception("Linkedin is requiring a more secure password. Reset pw and try again")
     else:

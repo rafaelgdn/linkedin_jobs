@@ -1,7 +1,75 @@
 import re
 
+
 def is_tech_job(job_title):
     tech_keywords = [
+        "user interface engineer",
+        "security researcher",
+        "software",
+        "software technical",
+        "db Developer",
+        "test analyst",
+        "data engineers",
+        "opentext developer",
+        "system designer",
+        "data science",
+        "data scientists",
+        "software engineers",
+        "web designer",
+        "brand designer",
+        "cybersecurity",
+        "automation developer",
+        "automation engineer",
+        "learning & development",
+        "learning and development",
+        "cloud strategy",
+        "it project",
+        "senior developer",
+        "mid developer",
+        "junior developer",
+        "data consulting",
+        "cloud consulting",
+        "python",
+        "python engineer",
+        "data architect",
+        "network architect",
+        "cloud researcher",
+        "cloud analyst",
+        "data analytics",
+        "project manager",
+        "bi analyst",
+        "product specialist",
+        "technology manager",
+        "data consultant",
+        "gen ai security",
+        "webint analyst",
+        "android security",
+        "cyber threat",
+        "malware researcher",
+        "system designer",
+        "graphics designer",
+        "head of engineering",
+        "game artist",
+        "chief design",
+        "user experience",
+        "user experience design",
+        "chief product",
+        "machine learning",
+        "deep learning",
+        "ai research",
+        "data architect",
+        "data engineer",
+        "data anaylst",
+        "project management",
+        "system administrator",
+        "web3",
+        "graphic designer",
+        "artificial intelligence",
+        "applied ai",
+        "systems engineer",
+        "systems engineering",
+        "system engineering",
+        "system engineer",
         "fullstack",
         "full stack",
         "full-stack",
@@ -55,6 +123,8 @@ def is_tech_job(job_title):
         "dba",
         "systems administrator",
         "technical support",
+        "support engineer",
+        "support engineering",
         "it support",
         "it specialist",
         "it consultant",
@@ -69,8 +139,7 @@ def is_tech_job(job_title):
         "cyber security",
         "product management",
         "web security",
-        "information technology"
-        "information systems",
+        "information technology" "information systems",
         "mobile developer",
         "ios developer",
         "android developer",
@@ -108,6 +177,7 @@ def is_tech_job(job_title):
         "vp of engineering",
         "director of engineering",
         "head of it",
+        "head of product",
         "it manager",
         "release engineer",
         "release engineering",
@@ -423,13 +493,13 @@ def is_tech_job(job_title):
     ]
 
     job_title_lower = job_title.lower()
-    words = re.findall(r'\b\w+\b', job_title_lower)
+    words = re.findall(r"\b\w+\b", job_title_lower)
 
     for keyword in tech_keywords:
-        if ' ' in keyword:
+        if " " in keyword:
             if all(word in words for word in keyword.split()):
                 return True
         elif keyword in words:
             return True
-    
+
     return False

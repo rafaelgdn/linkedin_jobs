@@ -12,13 +12,17 @@ packages = [
 python = "^3.10"
 selenium-driverless = "^1.9.3.1"
 requests = "^2.32.3"
-linkedin-api = "^2.3.0"
 beautifulsoup4 = "^4.12.3"
-tenacity = "^9.0.0"
+tenacity = "8.5.0"
 tqdm = "^4.66.5"
 rich = "^13.9.2"
 2captcha-python = "^1.5.0"
 colorlog = "^6.8.2"
+langchain-community = "^0.3.2"
+langchain = "^0.3.3"
+langchain-ollama = "^0.2.0"
+pandas = "^2.2.3"
+openpyxl = "^3.1.5"
 
 [build-system]
 requires = ["poetry-core"]

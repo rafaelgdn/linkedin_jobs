@@ -3,13 +3,11 @@ from src.utils import wait_for_selector, race, wait_for_network_idle, type_with_
 from helpers.cookies import load_cookies, save_cookies
 from helpers.two_factor import two_factor_authentication
 from helpers.captcha import solve_captcha
-import logging
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+from helpers.logger import logger
 
 
 async def login(driver, account):
-    logging.info(f"Logging in account: {account['email']}")
+    logger.info(f"Logging in account: {account['email']}")
 
     if account.get("proxy", None):
         await driver.set_single_proxy(account["proxy"])
@@ -24,7 +22,7 @@ async def login(driver, account):
     )
 
     if race_response == "logged":
-        logging.info("Already logged in.")
+        logger.info("Already logged in.")
         return
 
     await wait_for_network_idle(driver)
@@ -41,6 +39,8 @@ async def login(driver, account):
 
     submit_button = await driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
     await driver.execute_script("arguments[0].click()", submit_button)
+
+    # await driver.sleep(600)
 
     race_response = await race(
         wait_for_selector(driver, "#captcha-internal", response="captcha"),

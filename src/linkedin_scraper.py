@@ -1,19 +1,20 @@
-from utils import start_driver, load_csv_data, wait_for_selector, race, wait_for_network_idle, save_success_csv
+from utils import start_driver, load_csv_data, wait_for_selector, race, wait_for_network_idle
 from tenacity import retry, stop_after_attempt, wait_fixed
 from selenium_driverless.types.by import By
+from helpers.sqlite.sqlite import create_table, save_to_sqlite, get_founders_from_sqlite
 from helpers.accounts import get_account
 from helpers.cookies import update_cookies
 from helpers.tech_jobs import is_tech_job
+from helpers.logger import logger
 from linkedin.login import login
 from urllib.parse import urlparse
 from rich.console import Console
 from bs4 import BeautifulSoup
 import asyncio
-import logging
 import os
 
+create_table()
 console = Console()
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 assets_path = os.path.join(current_dir, "assets")
@@ -33,6 +34,7 @@ async def get_jobs_by_soup(driver):
         current_page = 1
         jobs = []
         tech_jobs = []
+        non_tech_jobs = []
 
         while True:
             await driver.sleep(0.5)
@@ -68,8 +70,13 @@ async def get_jobs_by_soup(driver):
                 is_tech = is_tech_job(title)
                 if is_tech:
                     tech_jobs.append(job)
-                logging.info("Job found.")
-                console.print(f"[bold dark_green]tech: {is_tech}\ntitle: {title}\nurl: {url}[/bold dark_green]")
+                else:
+                    non_tech_jobs.append(job)
+                logger.info("Job found.")
+                logger.success(f"Title: {title}")
+                logger.success(f"URL: {url}")
+                logger.success(f"Is tech: {is_tech}")
+                logger.success("----")
 
             if not pagination:
                 break
@@ -84,9 +91,9 @@ async def get_jobs_by_soup(driver):
             else:
                 break
 
-        return jobs, tech_jobs
+        return jobs, tech_jobs, non_tech_jobs
     except Exception as e:
-        logging.error(f"Error getting jobs: {e}")
+        logger.error(f"Error getting jobs: {e}")
         raise e
 
 
@@ -186,22 +193,22 @@ async def get_linkedin_jobs_from_company(driver, linkedin_url):
     )
 
     if race_response == "no_jobs":
-        return [], [], num_employees_text
+        return [], [], [], num_employees_text
 
     if race_response == "not_found_page" or not race_response:
-        return [], [], "0"
+        return [], [], [], "0"
 
     await driver.execute_script("arguments[0].click()", race_response)
     await wait_for_network_idle(driver)
 
-    jobs, tech_jobs = await get_jobs_by_soup(driver)
+    jobs, tech_jobs, non_tech_jobs = await get_jobs_by_soup(driver)
 
-    return jobs, tech_jobs, num_employees_text
+    return jobs, tech_jobs, non_tech_jobs, num_employees_text
 
 
 @retry(stop=stop_after_attempt(10), wait=wait_fixed(5))
 async def get_linkedin_jobs_from_profile(driver, linkedin_url):
-    logging.info(f"Getting jobs from {linkedin_url}")
+    logger.info(f"Getting jobs from {linkedin_url}")
 
     while True:
         await driver.get(linkedin_url, wait_load=True)
@@ -215,8 +222,8 @@ async def get_linkedin_jobs_from_profile(driver, linkedin_url):
         )
 
         if race_response == "page_not_found":
-            console.print("[bold dark_orange3]Page not found.[/bold dark_orange3]")
-            return [], [], "0"
+            logger.warning("Page not found.")
+            return [], [], [], "0"
 
         if race_response != "premium_alert":
             break
@@ -226,12 +233,12 @@ async def get_linkedin_jobs_from_profile(driver, linkedin_url):
     experience_elements = await experience_section.find_elements(By.CSS_SELECTOR, "a[href*='linkedin.com/company/']")
 
     if not experience_elements:
-        return [], [], "0"
+        return [], [], [], "0"
 
     last_company = experience_elements[0]
     last_company_url = await last_company.get_attribute("href")
-    jobs, tech_jobs, num_employees_text = await get_linkedin_jobs_from_company(driver, last_company_url)
-    return jobs, tech_jobs, num_employees_text
+    jobs, tech_jobs, non_tech_jobs, num_employees_text = await get_linkedin_jobs_from_company(driver, last_company_url)
+    return jobs, tech_jobs, non_tech_jobs, num_employees_text
 
 
 async def main():
@@ -239,13 +246,23 @@ async def main():
 
     founders = load_csv_data(f"{assets_path}/founders.csv")
 
+    already_saved_founders = get_founders_from_sqlite()
+    saved_founders_linkedin = set(saved_founder["LinkedIn"] for saved_founder in already_saved_founders)
+
+    account = await get_account()
+    await login(driver, account)
+
     for founder in founders:
         if not founder["LinkedIn"] or not is_url(founder["LinkedIn"]):
-            console.print(f"[bold cyan]Skipping {founder['Name']} because LinkedIn URL is invalid.[/bold cyan]")
+            logger.skip(f"Skipping {founder['Name']} because LinkedIn URL is invalid.")
             continue
 
-        account = await get_account()
-        await login(driver, account)
+        if founder["LinkedIn"] in saved_founders_linkedin:
+            logger.skip(f"Skipping {founder['Name']} because LinkedIn URL is already saved.")
+            continue
+
+        # account = await get_account()
+        # await login(driver, account)
 
         if "company" in founder["LinkedIn"]:
             func = get_linkedin_jobs_from_company
@@ -258,22 +275,23 @@ async def main():
         )
 
         if race_response == "premium_alert":
-            console.print("[bold dark_orange3]Premium alert found, changing account... [/bold dark_orange3]")
+            logger.warning("Premium alert found, changing account...")
             account = await get_account()
             await login(driver, account)
             continue
 
-        linkedin_jobs, tech_jobs, num_employees = race_response
+        linkedin_jobs, tech_jobs, non_tech_jobs, num_employees = race_response
 
         founder["# of Employees"] = num_employees
         founder["Jobs on Linkedin"] = linkedin_jobs
         founder["Tech Jobs on Linkedin"] = tech_jobs
-        logging.info("Founder scraper result.")
-        console.print(
-            f"[bold green]linkedin_jobs: {len(linkedin_jobs)}\ntech_jobs: {len(tech_jobs)}\nlinkedin_employees: {num_employees}[/bold green]"
-        )
+        founder["Non Tech Jobs on Linkedin"] = non_tech_jobs
+        logger.info("Founder scraper result.")
+        logger.success(f"LinkedinJobs: {len(linkedin_jobs)}")
+        logger.success(f"TechJobs: {len(tech_jobs)}")
+        logger.success(f"Employees: {num_employees}")
 
-        save_success_csv(founder, f"{assets_path}/founders_linkedin_jobs.csv")
+        save_to_sqlite(founder)
         await update_cookies(driver, account["email"])
 
     await driver.quit()

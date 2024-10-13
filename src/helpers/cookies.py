@@ -1,7 +1,5 @@
-import logging
+from helpers.logger import logger
 import json
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 async def load_cookies(driver, email):
@@ -11,7 +9,7 @@ async def load_cookies(driver, email):
             for cookie in cookies:
                 await driver.add_cookie(cookie)
     except FileNotFoundError:
-        logging.info("Cookie file not found.")
+        logger.info("Cookie file not found.")
 
 
 async def save_cookies(driver, email):
@@ -21,5 +19,5 @@ async def save_cookies(driver, email):
 
 
 async def update_cookies(driver, email):
-    logging.info("Updating cookies")
+    logger.info("Updating cookies")
     await save_cookies(driver, email)
